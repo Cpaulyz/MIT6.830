@@ -8,7 +8,7 @@ import java.util.*;
  */
 public class TupleDesc implements Serializable {
 
-    ArrayList<TDItem> items;
+    List<TDItem> items;
 
     /**
      * A help class to facilitate organizing the information of each field

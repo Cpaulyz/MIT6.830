@@ -18,12 +18,56 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class Catalog {
 
+    class Table{
+        private DbFile file;
+        private String name;
+        private String pkeyField;
+
+
+        public Table(DbFile file, String name, String pkeyField){
+            this.file = file;
+            this.name = name;
+            this.pkeyField = pkeyField;
+        }
+
+        public DbFile getFile() {
+            return file;
+        }
+
+        public void setFile(DbFile file) {
+            this.file = file;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getPkeyField() {
+            return pkeyField;
+        }
+
+        public void setPkeyField(String pkeyField) {
+            this.pkeyField = pkeyField;
+        }
+    }
+
+    /* <name,Table>*/
+    private Map<String,Table> stringTableMap;
+
+    /* <tableId,Table>*/
+    private Map<Integer,Table> integerTableMap;
+
     /**
      * Constructor.
      * Creates a new, empty catalog.
      */
     public Catalog() {
-        // some code goes here
+        stringTableMap = new HashMap<>();
+        integerTableMap = new HashMap<>();
     }
 
     /**
@@ -32,11 +76,16 @@ public class Catalog {
      * @param file the contents of the table to add;  file.getId() is the identfier of
      *    this file/tupledesc param for the calls getTupleDesc and getFile
      * @param name the name of the table -- may be an empty string.  May not be null.  If a name
-     * conflict exists, use the last table to be added as the table for a given name.
-     * @param pkeyField the name of the primary key field
+     * conflict exists, use the last table to be added as the table for a given name. 表名
+     * @param pkeyField the name of the primary key field 主键字段
      */
     public void addTable(DbFile file, String name, String pkeyField) {
-        // some code goes here
+        if(stringTableMap.containsKey(name)){
+            integerTableMap.remove(stringTableMap.get(name).getFile().getId());
+        }
+        Table table = new Table(file,name,pkeyField);
+        stringTableMap.put(name,table);
+        integerTableMap.put(file.getId(),table);
     }
 
     public void addTable(DbFile file, String name) {
@@ -59,8 +108,10 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public int getTableId(String name) throws NoSuchElementException {
-        // some code goes here
-        return 0;
+        if(stringTableMap.containsKey(name)){
+            return stringTableMap.get(name).getFile().getId();
+        }
+        throw new NoSuchElementException();
     }
 
     /**
@@ -70,8 +121,10 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
-        // some code goes here
-        return null;
+        if(integerTableMap.containsKey(tableid)){
+            return integerTableMap.get(tableid).getFile().getTupleDesc();
+        }
+        throw new NoSuchElementException();
     }
 
     /**
@@ -81,28 +134,34 @@ public class Catalog {
      *     function passed to addTable
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
-        // some code goes here
-        return null;
+        if(integerTableMap.containsKey(tableid)){
+            return integerTableMap.get(tableid).getFile();
+        }
+        throw new NoSuchElementException();
     }
 
     public String getPrimaryKey(int tableid) {
-        // some code goes here
-        return null;
+        if(integerTableMap.containsKey(tableid)){
+            return integerTableMap.get(tableid).getPkeyField();
+        }
+        throw new NoSuchElementException();
     }
 
     public Iterator<Integer> tableIdIterator() {
-        // some code goes here
-        return null;
+        return integerTableMap.keySet().iterator();
     }
 
     public String getTableName(int id) {
-        // some code goes here
-        return null;
+        if(integerTableMap.containsKey(id)){
+            return integerTableMap.get(id).getName();
+        }
+        throw new NoSuchElementException();
     }
     
     /** Delete all tables from the catalog */
     public void clear() {
-        // some code goes here
+        integerTableMap.clear();
+        stringTableMap.clear();
     }
     
     /**
