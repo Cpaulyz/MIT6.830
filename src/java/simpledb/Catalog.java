@@ -151,9 +151,9 @@ public class Catalog {
         return integerTableMap.keySet().iterator();
     }
 
-    public String getTableName(int id) {
-        if(integerTableMap.containsKey(id)){
-            return integerTableMap.get(id).getName();
+    public String getTableName(int tableid) {
+        if(integerTableMap.containsKey(tableid)){
+            return integerTableMap.get(tableid).getName();
         }
         throw new NoSuchElementException();
     }
