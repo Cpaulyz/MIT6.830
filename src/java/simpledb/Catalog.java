@@ -56,18 +56,18 @@ public class Catalog {
     }
 
     /* <name,Table>*/
-    private Map<String,Table> stringTableMap;
+    private ConcurrentHashMap<String,Table> stringTableMap;
 
     /* <tableId,Table>*/
-    private Map<Integer,Table> integerTableMap;
+    private ConcurrentHashMap<Integer,Table> integerTableMap;
 
     /**
      * Constructor.
      * Creates a new, empty catalog.
      */
     public Catalog() {
-        stringTableMap = new HashMap<>();
-        integerTableMap = new HashMap<>();
+        stringTableMap = new ConcurrentHashMap<>();
+        integerTableMap = new ConcurrentHashMap<>();
     }
 
     /**

@@ -29,7 +29,11 @@ public class Tuple implements Serializable {
      */
     public Tuple(TupleDesc td) {
         this.tupleDesc = td;
-        fields = Arrays.asList(new Field[td.numFields()]);
+        fields = new ArrayList<>();
+        for (int i = 0; i < td.numFields(); i++) {
+            fields.add(null);
+        }
+//        fields = Arrays.asList(new Field[td.numFields()]);
     }
 
     /**
