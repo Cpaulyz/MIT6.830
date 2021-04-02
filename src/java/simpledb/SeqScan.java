@@ -111,7 +111,9 @@ public class SeqScan implements OpIterator {
     }
 
     public void close() {
-        iterator.close();
+        if(iterator!=null){
+            iterator.close();
+        }
         iterator = null;
     }
 

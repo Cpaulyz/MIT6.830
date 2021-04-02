@@ -4,6 +4,7 @@ import java.util.*;
 
 /**
  * Project is an operator that implements a relational projection.
+ * 投影
  */
 public class Project extends Operator {
 
@@ -87,10 +88,9 @@ public class Project extends Operator {
 
     @Override
     public void setChildren(OpIterator[] children) {
-	if (this.child!=children[0])
-	{
-	    this.child = children[0];
-	}
+        if (this.child!=children[0]) {
+            this.child = children[0];
+        }
     }
     
 }
