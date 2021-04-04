@@ -135,8 +135,9 @@ public class BufferPool {
      * pages that are updated (Lock acquisition is not needed for lab2). 
      * May block if the lock(s) cannot be acquired.
      * 
-     * Marks any pages that were dirtied by the operation as dirty by calling
-     * their markDirty bit, and adds versions of any pages that have 
+     * 1. Marks any pages that were dirtied by the operation as dirty by calling
+     * their markDirty bit,
+     * 2. and adds versions of any pages that have
      * been dirtied to the cache (replacing any existing versions of those pages) so 
      * that future requests see up-to-date pages. 
      *
@@ -146,8 +147,11 @@ public class BufferPool {
      */
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
-        // some code goes here
-        // not necessary for lab1
+        ArrayList<Page> pages =  Database.getCatalog().getDatabaseFile(tableId).insertTuple(tid,t);
+        for(Page page:pages){
+            page.markDirty(true,tid);
+        }
+        updateBufferPool(tid,pages);
     }
 
     /**
@@ -163,10 +167,20 @@ public class BufferPool {
      * @param tid the transaction deleting the tuple.
      * @param t the tuple to delete
      */
-    public  void deleteTuple(TransactionId tid, Tuple t)
+    public void deleteTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
-        // some code goes here
-        // not necessary for lab1
+        ArrayList<Page> pages =  Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId()).deleteTuple(tid,t);
+        for(Page page:pages){
+            page.markDirty(true,tid);
+        }
+        updateBufferPool(tid,pages);
+    }
+
+    private void updateBufferPool(TransactionId tid,List<Page> pages){
+        for (Page page:pages){
+            // TODO: 如果页超出限制，替换？
+            this.pages.put(page.getId().hashCode(),page);
+        }
     }
 
     /**
