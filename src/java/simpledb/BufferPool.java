@@ -5,6 +5,7 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -60,6 +61,10 @@ public class BufferPool {
     	BufferPool.pageSize = DEFAULT_PAGE_SIZE;
     }
 
+    private Integer getKey(PageId pageId){
+        return pageId.hashCode(); // 使用hashcode来作为key
+    }
+
     /**
      * Retrieve the specified page with the associated permissions.
      * Will acquire a lock and may block if that lock is held by another
@@ -77,9 +82,12 @@ public class BufferPool {
      */
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
-        Integer key = pid.hashCode(); // 使用hashcode来作为key
+        Integer key = getKey(pid);
         if(!pages.containsKey(key)){
             DbFile dbFile = Database.getCatalog().getDatabaseFile(pid.getTableId());
+            while (pages.size()>=numPages){
+                evictPage();
+            }
             pages.put(key,dbFile.readPage(pid));
         }
         return pages.get(key);
@@ -148,9 +156,9 @@ public class BufferPool {
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
         ArrayList<Page> pages =  Database.getCatalog().getDatabaseFile(tableId).insertTuple(tid,t);
-        for(Page page:pages){
-            page.markDirty(true,tid);
-        }
+//        for(Page page:pages){
+//            page.markDirty(true,tid);
+//        }
         updateBufferPool(tid,pages);
     }
 
@@ -170,16 +178,33 @@ public class BufferPool {
     public void deleteTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
         ArrayList<Page> pages =  Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId()).deleteTuple(tid,t);
-        for(Page page:pages){
-            page.markDirty(true,tid);
-        }
+//        for(Page page:pages){
+//            page.markDirty(true,tid);
+//        }
         updateBufferPool(tid,pages);
     }
 
+    /**
+     * 1. make dirty
+     * 2. put in buffer pool
+     * @param tid
+     * @param pages
+     */
     private void updateBufferPool(TransactionId tid,List<Page> pages){
         for (Page page:pages){
-            // TODO: 如果页超出限制，替换？
-            this.pages.put(page.getId().hashCode(),page);
+            // make dirty
+            page.markDirty(true,tid);
+            int key = getKey(page.getId());
+            if(!this.pages.containsKey(key)){
+                while (this.pages.size()>=numPages){
+                    try {
+                        evictPage();
+                    } catch (DbException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+            this.pages.put(key,page);
         }
     }
 
@@ -189,9 +214,9 @@ public class BufferPool {
      *     break simpledb if running in NO STEAL mode.
      */
     public synchronized void flushAllPages() throws IOException {
-        // some code goes here
-        // not necessary for lab1
-
+        for(Page page:pages.values()){
+            flushPage(page.getId());
+        }
     }
 
     /** Remove the specific page id from the buffer pool.
@@ -203,17 +228,22 @@ public class BufferPool {
         are removed from the cache so they can be reused safely
     */
     public synchronized void discardPage(PageId pid) {
-        // some code goes here
-        // not necessary for lab1
+        int key = getKey(pid);
+        pages.remove(key);
     }
 
     /**
      * Flushes a certain page to disk
+     * Write any dirty page to disk and mark it as not dirty, while leaving it in the BufferPool.
      * @param pid an ID indicating the page to flush
      */
     private synchronized  void flushPage(PageId pid) throws IOException {
-        // some code goes here
-        // not necessary for lab1
+        Page page = pages.get(getKey(pid));
+        if(page.isDirty()!=null){
+            DbFile dbFile = Database.getCatalog().getDatabaseFile(page.getId().getTableId());
+            dbFile.writePage(page);
+            page.markDirty(false,null);
+        }
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -228,8 +258,16 @@ public class BufferPool {
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
     private synchronized  void evictPage() throws DbException {
-        // some code goes here
-        // not necessary for lab1
+        // 采用最简单的随机淘汰策略
+        List<Integer> keys = new ArrayList<>(pages.keySet());
+        int randomKey = keys.get(new Random().nextInt(keys.size()));
+        PageId evictPid = pages.get(randomKey).getId();
+        try {
+            flushPage(evictPid);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        discardPage(evictPid);
     }
 
 }
