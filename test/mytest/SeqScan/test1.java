@@ -1,7 +1,9 @@
-package simpledb;
+package mytest.SeqScan;
+import simpledb.*;
+
 import java.io.*;
 
-public class test {
+public class test1 {
 
     public static void main(String[] argv) {
 
@@ -12,7 +14,7 @@ public class test {
 
         // create the table, associate it with some_data_file.dat
         // and tell the catalog about the schema of this table.
-        HeapFile table1 = new HeapFile(new File("D:\\JavaSpace\\simple-db-hw\\src\\java\\simpledb\\some_data_file.dat"), descriptor);
+        HeapFile table1 = new HeapFile(new File("D:\\JavaSpace\\simple-db-hw\\test\\mytest\\some_data_file.dat"), descriptor);
         Database.getCatalog().addTable(table1, "test");
 
         // construct the query: we use a simple SeqScan, which spoonfeeds

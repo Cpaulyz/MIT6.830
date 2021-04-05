@@ -114,6 +114,6 @@ public class Tuple implements Serializable {
     public void resetTupleDesc(TupleDesc td)
     {
         this.tupleDesc = td;
-        // TODO: 鏄惁闇�瑕侀噸璁緁ields?
+        // TODO: 是否需要重设fields?
     }
 }

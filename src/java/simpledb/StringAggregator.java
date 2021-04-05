@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Knows how to compute some aggregate over a set of StringFields.
  *
  * finished in lab2 exercise2
- * TODO:ä¸çŸ¥é“å’ŒIntegerAggregatoræœ‰ä»€ä¹ˆåŒºåˆ«....åŒºåˆ«ä¼¼ä¹åœ¨äºâ€œaggregateFieldâ€çš„Typeï¼Œä½†æ˜¯å®ç°èµ·æ¥ä¸€æ ·å•Š
+ * TODO:²»ÖªµÀºÍIntegerAggregatorÓĞÊ²Ã´Çø±ğ....Çø±ğËÆºõÔÚÓÚ¡°aggregateField¡±µÄType£¬µ«ÊÇÊµÏÖÆğÀ´Ò»Ñù°¡
  */
 public class StringAggregator implements Aggregator {
 

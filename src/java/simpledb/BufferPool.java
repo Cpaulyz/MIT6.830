@@ -62,7 +62,7 @@ public class BufferPool {
     }
 
     private Integer getKey(PageId pageId){
-        return pageId.hashCode(); // 浣跨敤hashcode鏉ヤ綔涓簁ey
+        return pageId.hashCode(); // 使用hashcode来作为key
     }
 
     /**
@@ -258,7 +258,7 @@ public class BufferPool {
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
     private synchronized  void evictPage() throws DbException {
-        // 閲囩敤鏈�绠�鍗曠殑闅忔満娣樻卑绛栫暐
+        // 采用最简单的随机淘汰策略
         List<Integer> keys = new ArrayList<>(pages.keySet());
         int randomKey = keys.get(new Random().nextInt(keys.size()));
         PageId evictPid = pages.get(randomKey).getId();
