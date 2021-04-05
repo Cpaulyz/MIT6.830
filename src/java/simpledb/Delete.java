@@ -5,11 +5,23 @@ import java.io.IOException;
 /**
  * The delete operator. Delete reads tuples from its child operator and removes
  * them from the table they belong to.
+ *
+ * finish in lab2 exercise4
  */
 public class Delete extends Operator {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * The transaction running the insert.
+     */
+    private TransactionId tid;
+    /**
+     * The child operator from which to read tuples to be inserted.
+     */
+    private OpIterator child;
+
+    private TupleDesc tupleDesc;
     /**
      * Constructor specifying the transaction that this delete belongs to as
      * well as the child to read from.
@@ -20,24 +32,27 @@ public class Delete extends Operator {
      *            The child operator from which to read tuples for deletion
      */
     public Delete(TransactionId t, OpIterator child) {
-        // some code goes here
+        this.tid = t;
+        this.child = child;
+        this.tupleDesc = new TupleDesc(new Type[]{Type.INT_TYPE}, new String[]{"number of deleted records"});
     }
 
     public TupleDesc getTupleDesc() {
-        // some code goes here
-        return null;
+        return this.tupleDesc;
     }
 
     public void open() throws DbException, TransactionAbortedException {
-        // some code goes here
+        child.open();
+        super.open();
     }
 
     public void close() {
-        // some code goes here
+        super.close();
+        child.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-        // some code goes here
+        child.rewind();
     }
 
     /**
@@ -50,19 +65,29 @@ public class Delete extends Operator {
      * @see BufferPool#deleteTuple
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
-        // some code goes here
-        return null;
+        int count = 0;
+        while (child.hasNext()) {
+            Tuple t = child.next();
+            try {
+                Database.getBufferPool().deleteTuple(tid, t);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            count++;
+        }
+        Tuple res = new Tuple(tupleDesc);
+        res.setField(0, new IntField(count));
+        return res;
     }
 
     @Override
     public OpIterator[] getChildren() {
-        // some code goes here
-        return null;
+        return new OpIterator[]{this.child};
     }
 
     @Override
     public void setChildren(OpIterator[] children) {
-        // some code goes here
+        this.child = children[0];
     }
 
 }
