@@ -133,6 +133,9 @@ public class TupleDesc implements Serializable {
      *             if no field with a matching name is found.
      */
     public int fieldNameToIndex(String name) throws NoSuchElementException {
+        String[] tmp = name.split("\\.");
+        name = tmp[tmp.length-1];
+        // 上面这两行是为了执行catalog.txt... 否则会报错？？
         for (int i = 0; i < items.size(); i++) {
             if(items.get(i).fieldName.equals(name)){
                 return i;
@@ -225,7 +228,15 @@ public class TupleDesc implements Serializable {
      * @return String describing this descriptor.
      */
     public String toString() {
-        // some code goes here
-        return "";
+        if(items.size()==0){
+            return "";
+        }else{
+            StringBuffer sb = new StringBuffer(items.get(0).toString());
+            for (int i = 1; i < items.size(); i++) {
+                sb.append(",");
+                sb.append(items.get(i).toString());
+            }
+            return sb.toString();
+        }
     }
 }
