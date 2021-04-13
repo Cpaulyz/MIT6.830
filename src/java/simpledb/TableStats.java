@@ -10,6 +10,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * query. 
  * 
  * This class is not needed in implementing lab1 and lab2.
+ *
+ * finished in lab3 exercise2
  */
 public class TableStats {
 
@@ -65,6 +67,27 @@ public class TableStats {
      * histograms.
      */
     static final int NUM_HIST_BINS = 100;
+    /**
+     * DbFile of table
+     */
+    private DbFile file;
+    /**
+     * The cost per page of IO.
+     */
+    private int ioCostPerPage;
+    /**
+     * number of tuples
+     */
+    private int numTuples;
+    /**
+     * type fo fields
+     */
+    private Type[] types;
+    /**
+     * <FiledIndex,Histogram>
+     */
+    private Map<Integer,StringHistogram> stringHistogramMap;
+    private Map<Integer,IntHistogram> integerIntHistogramMap;
 
     /**
      * Create a new TableStats object, that keeps track of statistics on each
@@ -84,7 +107,70 @@ public class TableStats {
         // You should try to do this reasonably efficiently, but you don't
         // necessarily have to (for example) do everything
         // in a single scan of the table.
-        // some code goes here
+        this.file = Database.getCatalog().getDatabaseFile(tableid);
+        this.ioCostPerPage = ioCostPerPage;
+        this.numTuples = 0;
+        this.stringHistogramMap = new HashMap<>();
+        this.integerIntHistogramMap =new HashMap<>();
+        TupleDesc td = file.getTupleDesc();
+        int numFields = td.numFields();
+        types = new Type[numFields];
+        int[] mins = new int[numFields];
+        int[] maxs = new int[numFields];
+        for (int i = 0; i < td.numFields(); i++) {
+            // init types mins maxs
+            types[i] = td.getFieldType(i);
+            mins[i] = Integer.MAX_VALUE;
+            maxs[i] = Integer.MIN_VALUE;
+        }
+        SeqScan scan = new SeqScan(new TransactionId(),tableid);
+        try {
+            // scan to compute the minimum and maximum values for every attribute in the table
+            scan.open();
+            while (scan.hasNext()){
+                Tuple tuple = scan.next();
+                numTuples++;
+                for (int i = 0; i < numFields; i++) {
+                    int val = tuple.getField(i).hashCode();
+                    mins[i] = val<mins[i]?val:mins[i];
+                    maxs[i] = val>maxs[i]?val:maxs[i];
+                }
+            }
+            // init histogram
+            for (int i = 0; i < numFields; i++) {
+                switch (types[i]){
+                    case STRING_TYPE:
+                        stringHistogramMap.put(i,new StringHistogram(NUM_HIST_BINS));
+                        break;
+                    case INT_TYPE:
+                        integerIntHistogramMap.put(i,new IntHistogram(NUM_HIST_BINS,mins[i],maxs[i]));
+                        break;
+                    default:
+                        throw new UnsupportedOperationException("unknown type");
+                }
+            }
+            // scan again to populate the counts of the buckets in each histogram
+            scan.rewind();
+            while (scan.hasNext()){
+                Tuple tuple = scan.next();
+                for (int i = 0; i < numFields; i++) {
+                    switch (types[i]){
+                        case STRING_TYPE:
+                            stringHistogramMap.get(i).addValue(((StringField)tuple.getField(i)).getValue());
+                            break;
+                        case INT_TYPE:
+                            integerIntHistogramMap.get(i).addValue(((IntField)tuple.getField(i)).getValue());
+                            break;
+                        default:
+                            throw new UnsupportedOperationException("unknown type");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }finally {
+            scan.close();
+        }
     }
 
     /**
@@ -100,8 +186,12 @@ public class TableStats {
      * @return The estimated cost of scanning the table.
      */
     public double estimateScanCost() {
-        // some code goes here
-        return 0;
+        if(file instanceof HeapFile){
+            HeapFile tmp = (HeapFile) file;
+            return tmp.numPages()*this.ioCostPerPage;
+        }else{
+            throw new UnsupportedOperationException("file type unsupported");
+        }
     }
 
     /**
@@ -114,8 +204,7 @@ public class TableStats {
      *         selectivityFactor
      */
     public int estimateTableCardinality(double selectivityFactor) {
-        // some code goes here
-        return 0;
+        return (int) (totalTuples()*selectivityFactor);
     }
 
     /**
@@ -129,8 +218,18 @@ public class TableStats {
      * expected selectivity. You may estimate this value from the histograms.
      * */
     public double avgSelectivity(int field, Predicate.Op op) {
-        // some code goes here
-        return 1.0;
+        double res = 0;
+        switch (types[field]){
+            case INT_TYPE:
+                res = integerIntHistogramMap.get(field).avgSelectivity();
+                break;
+            case STRING_TYPE:
+                res = stringHistogramMap.get(field).avgSelectivity();
+                break;
+            default:
+                throw new UnsupportedOperationException("unknown type");
+        }
+        return res;
     }
 
     /**
@@ -147,16 +246,25 @@ public class TableStats {
      *         predicate
      */
     public double estimateSelectivity(int field, Predicate.Op op, Field constant) {
-        // some code goes here
-        return 1.0;
+        double res = 0;
+        switch (types[field]){
+            case INT_TYPE:
+                res = integerIntHistogramMap.get(field).estimateSelectivity(op,((IntField)constant).getValue());
+                break;
+            case STRING_TYPE:
+                res = stringHistogramMap.get(field).estimateSelectivity(op,((StringField)constant).getValue());
+                break;
+            default:
+                throw new UnsupportedOperationException("unknown type");
+        }
+        return res;
     }
 
     /**
      * return the total number of tuples in this table
      * */
     public int totalTuples() {
-        // some code goes here
-        return 0;
+        return this.numTuples;
     }
 
 }

@@ -27,8 +27,6 @@ public class IntHistogram {
         System.out.println(h2.getIndex(10));
         System.out.println(h2.getIndex(11));
 
-        IntHistogram h = new IntHistogram(10, 1, 10);
-        System.out.println(h.getIndex(1));
 //        // Set some values
 //        h.addValue(3);
 //        h.addValue(3);
@@ -60,7 +58,6 @@ public class IntHistogram {
     private double width;
 
     private List<Bucket> buckets;
-//    private int[] buckets;
 
     private int ntup;
 
@@ -86,19 +83,13 @@ public class IntHistogram {
         this.maxValue = max;
         this.width = (1.0 + max - min) / (buckets);
         this.buckets = new ArrayList<>();
-//        this.buckets = new int[numBuckets];
         for (int i = 0; i < numBuckets; i++) {
             int left = (int) Math.ceil(min + i * width);
-//            int left = (int) (min + i * width);
             int right = (int) Math.ceil (min + (i + 1) * width)-1;
-//            if(i==numBuckets-1){
-//                right=max;
-//            }
-//            int right = (int) (min + (i + 1) * width) - 1;
             if(right<left){
                 right = left;
             }
-            System.out.println("left:" + left + "   right:" + right);
+//            System.out.println("left:" + left + "   right:" + right);
             this.buckets.add(new Bucket(left, right));
         }
     }
@@ -128,7 +119,6 @@ public class IntHistogram {
      */
     public void addValue(int v) {
         int index = getIndex(v);
-//        buckets[index]++;
         buckets.get(index).addCount();
         ntup++;
     }
@@ -144,12 +134,18 @@ public class IntHistogram {
      * @return Predicted selectivity of this particular operator and value
      */
     public double estimateSelectivity(Predicate.Op op, int v) {
-        int index, sum;
+        int index;
+        double sum;
+        Bucket bucket;
         switch (op) {
             case EQUALS:
                 index = getIndex(v);
-                return (buckets.get(index).getCount() / width) / ntup;
-//                return (buckets[getIndex(v)] / width) / ntup;
+                if(index<0||index>=numBuckets){
+                    return 0;
+                }else{
+                    bucket = buckets.get(index);
+                    return (1.0*bucket.getCount() / bucket.getWidth()) / ntup;
+                }
             case GREATER_THAN:
                 index = getIndex(v);
                 if (index < 0) {
@@ -157,12 +153,12 @@ public class IntHistogram {
                 } else if (index >= numBuckets) {
                     return 0;
                 } else {
-//                    sum = (int) (buckets[index] * (getRight(index) - v) / width);
-                    sum = (int) (buckets.get(index).getCount() * (buckets.get(index).getRight() - v) / width);
+                    bucket = buckets.get(index);
+                    sum = 1.0*bucket.getCount() * (bucket.getRight() - v) / bucket.getWidth();
                     for (int i = index+1; i < numBuckets; i++) {
                         sum += buckets.get(i).getCount();
                     }
-                    return sum * 1.0 / ntup;
+                    return sum / ntup;
                 }
             case LESS_THAN:
                 index = getIndex(v);
@@ -171,11 +167,12 @@ public class IntHistogram {
                 } else if (index >= numBuckets) {
                     return 1;
                 } else {
-                    sum = (int) (buckets.get(index).getCount() * (v - buckets.get(index).getLeft()) / width);
+                    bucket = buckets.get(index);
+                    sum = 1.0*bucket.getCount() * (v - bucket.getLeft()) / bucket.getWidth();
                     for (int i = index - 1; i >= 0; i--) {
                         sum += buckets.get(i).getCount();
                     }
-                    return sum * 1.0 / ntup;
+                    return sum / ntup;
                 }
             case GREATER_THAN_OR_EQ:
                 return estimateSelectivity(Predicate.Op.GREATER_THAN,v-1);
@@ -200,9 +197,6 @@ public class IntHistogram {
         for (Bucket bucket : buckets) {
             cnt += bucket.getCount();
         }
-//        for(int n:buckets){
-//            cnt+=n;
-//        }
         return cnt * 1.0 / numBuckets;
     }
 
@@ -210,13 +204,12 @@ public class IntHistogram {
      * @return A string describing this histogram, for debugging purposes
      */
     public String toString() {
-//        StringBuilder res = new StringBuilder("|| ");
-//        for (Bucket bucket : buckets) {
-//            res.append(bucket);
-//            res.append(" || ");
-//        }
-//        return res.toString();
-        return "";
+        StringBuilder res = new StringBuilder("|| ");
+        for (Bucket bucket : buckets) {
+            res.append(bucket);
+            res.append(" || ");
+        }
+        return res.toString();
     }
 
     private class Bucket {
@@ -257,6 +250,9 @@ public class IntHistogram {
             this.count++;
         }
 
+        public int getWidth(){
+            return right-left+1;
+        }
         @Override
         public String toString() {
             return "<" + left + "," + right + ">:" + count;
