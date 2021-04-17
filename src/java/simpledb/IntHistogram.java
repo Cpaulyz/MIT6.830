@@ -96,21 +96,9 @@ public class IntHistogram {
 
     private int getIndex(int v) {
         int res;
-//        if (v == maxValue) {
-//            res = numBuckets - 1;
-//        } else {
-            res = (int) ((v - minValue) / width);
-//        }
+        res = (int) ((v - minValue) / width);
         return res;
     }
-
-//    private int getLeft(int index){
-//        return (int) (minValue + (index-1)*width);
-//    }
-//
-//    private int getRight(int index){
-//        return (int) (minValue + index*width);
-//    }
 
     /**
      * Add a value to the set of values that you are keeping a histogram of.
