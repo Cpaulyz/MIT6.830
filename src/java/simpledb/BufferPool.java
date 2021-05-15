@@ -2,10 +2,7 @@ package simpledb;
 
 import java.io.*;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -37,6 +34,8 @@ public class BufferPool {
      */
     private ConcurrentHashMap<Integer,Page> pages;
 
+    private LockManager lockManager;
+
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -45,6 +44,7 @@ public class BufferPool {
     public BufferPool(int numPages) {
         this.numPages = numPages;
         pages = new ConcurrentHashMap<>();
+        lockManager = new LockManager();
     }
     
     public static int getPageSize() {
@@ -82,15 +82,32 @@ public class BufferPool {
      */
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
-        Integer key = getKey(pid);
-        if(!pages.containsKey(key)){
-            DbFile dbFile = Database.getCatalog().getDatabaseFile(pid.getTableId());
-            while (pages.size()>=numPages){
-                evictPage();
+        Object lock = lockManager.getTxLock(pid);
+        synchronized (lock){
+            LockType lockType;
+            if(perm == Permissions.READ_ONLY){
+                lockType = LockType.SHARED_LOCK;
+            }else{
+                lockType = LockType.EXCLUSIVE_LOCK;
             }
-            pages.put(key,dbFile.readPage(pid));
+            boolean lockStatus = lockManager.acquireLock(pid,new Lock(tid,lockType));
+            if(!lockStatus){
+                try {
+                    lock.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            Integer key = getKey(pid);
+            if(!pages.containsKey(key)){
+                DbFile dbFile = Database.getCatalog().getDatabaseFile(pid.getTableId());
+                while (pages.size()>=numPages){
+                    evictPage();
+                }
+                pages.put(key,dbFile.readPage(pid));
+            }
+            return pages.get(key);
         }
-        return pages.get(key);
     }
 
     /**
@@ -103,8 +120,7 @@ public class BufferPool {
      * @param pid the ID of the page to unlock
      */
     public  void releasePage(TransactionId tid, PageId pid) {
-        // some code goes here
-        // not necessary for lab1|lab2
+        lockManager.releaseLock(pid,tid);
     }
 
     /**
@@ -115,13 +131,12 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+        transactionComplete(tid,true);
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
     public boolean holdsLock(TransactionId tid, PageId p) {
-        // some code goes here
-        // not necessary for lab1|lab2
-        return false;
+        return lockManager.holdsLock(p,tid);
     }
 
     /**
@@ -135,6 +150,12 @@ public class BufferPool {
         throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+        if(commit){
+            flushPages(tid);
+        }else{
+            // abort page
+        }
+        lockManager.releaseLock(tid);
     }
 
     /**
@@ -268,6 +289,124 @@ public class BufferPool {
             e.printStackTrace();
         }
         discardPage(evictPid);
+    }
+
+
+    enum LockType{
+        SHARED_LOCK, EXCLUSIVE_LOCK;
+    }
+    private class Lock{
+        TransactionId tid;
+        LockType lockType;   // 0 for shared lock and 1 for exclusive lock
+
+        public Lock(TransactionId tid,LockType lockType){
+            this.tid = tid;
+            this.lockType = lockType;
+        }
+    }
+    private class LockManager {
+        ConcurrentHashMap<PageId, Vector<Lock>> pageLocks = new ConcurrentHashMap<>();
+        ConcurrentHashMap<PageId, Object> txLocks = new ConcurrentHashMap<>();
+        /**
+         * 获取锁
+         * 场景：已持有锁、尝试获取读锁、尝试获取写锁、读锁升级写锁
+         * 注意：别的事务持有锁，导致当前事务无法获取锁之后需要进行等待和通知
+         * @return 是否获取锁成功
+         */
+        public synchronized boolean acquireLock(PageId pageId,Lock lock){
+            if(pageLocks.get(pageId)==null){ // 没人有锁，成功
+                Vector<Lock> locks = new Vector<>();
+                locks.add(lock);
+                pageLocks.put(pageId,locks);
+                return true;
+            }
+            Vector<Lock> locks = pageLocks.get(pageId);
+            for(Lock l:locks){
+                if(l.tid.equals(lock.tid)){
+                    if(l.lockType==lock.lockType){
+                        return true;  // 已持有锁
+                    }else{
+                        if(l.lockType==LockType.EXCLUSIVE_LOCK){
+                            return true; // 已有排它锁，可以有共享锁
+                        }else if(l.lockType==LockType.SHARED_LOCK){
+                            if(locks.size()==1){
+                                // 读锁升级写锁
+                                l.lockType = LockType.EXCLUSIVE_LOCK;
+                                return true;
+                            }else {
+                                return false;
+                            }
+                        }
+
+                    }
+                }
+            }
+            // 如果没有过，并且其他都是共享锁，可以加锁
+            if(lock.lockType==LockType.SHARED_LOCK&&locks.get(0).lockType==LockType.SHARED_LOCK){
+                locks.add(lock);
+                return true;
+            }
+            return false;
+        }
+
+        /**
+         * 释放锁
+         * @return true: 成功 false: 没锁
+         */
+        public synchronized boolean releaseLock(TransactionId tid){
+            for(PageId pageId:pageLocks.keySet()){
+                if(holdsLock(pageId,tid)){
+                    boolean res = releaseLock(pageId,tid);
+                    if(!res){
+                        return false;
+                    }
+                    // TODO：先全部唤醒，可优化
+                    Object object = getTxLock(pageId);
+                    object.notifyAll();
+                }
+            }
+            return true;
+        }
+
+        /**
+         * 释放锁
+         * @return true: 成功 false: 没锁
+         */
+        public synchronized boolean releaseLock(PageId pageId,TransactionId tid){
+            assert pageLocks.get(pageId) != null : "page not locked!";
+            Vector<Lock> locks = pageLocks.get(pageId);
+            for(Lock l:locks){
+                if(l.tid.equals(tid)){
+                    locks.remove(l);
+                    if(locks.size()==0){
+                        pageLocks.remove(pageId);
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * 判断tix是否持有锁
+         */
+        public synchronized boolean holdsLock(PageId pageId,TransactionId tid){
+            Vector<Lock> locks = pageLocks.get(pageId);
+            if(locks==null){
+                return false;
+            }
+            for(Lock l:locks){
+                if(l.tid.equals(tid)){
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public Object getTxLock(PageId pageId){
+            txLocks.computeIfAbsent(pageId, k -> new Object());
+            return txLocks.get(pageId);
+        }
     }
 
 }
